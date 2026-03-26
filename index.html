@@ -446,7 +446,7 @@ function update(timestamp) {
         let diff = targetAngle - g.facing;
         while (diff >  Math.PI) diff -= 2 * Math.PI;
         while (diff < -Math.PI) diff += 2 * Math.PI;
-        g.facing += diff * Math.min(1, 8 * dt);
+        g.facing += diff * Math.min(1, 4 * dt);
         const step = g.speed * dt;
         g.x += (dx / dist) * step;
         g.y += (dy / dist) * step;
