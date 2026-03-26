@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>KEYBOUND — Stealth Escape</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #050508;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    border: 2px solid #1a3a6a;
+    box-shadow: 0 0 40px rgba(79, 195, 247, 0.15);
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+'use strict';
+
+// ─── SETUP ───────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const TILE  = 40;
+const COLS  = 20;
+const ROWS  = 15;
+canvas.width  = COLS * TILE;  // 800
+canvas.height = ROWS * TILE;  // 600
+
+const T = { FLOOR: 0, WALL: 1, KEY: 2, EXIT: 3 };
+
+// ─── LEVELS ──────────────────────────────────────────────────────────────────
+const LEVELS = [
+  // ── LEVEL 1: Introduction ─ 2 guards, 3 keys ────────────────────────────
+  {
+    map: [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,2,0,0,0,1,0,0,0,1,1,1,0,0,0,0,2,0,1],
+      [1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1,0,0,0,1],
+      [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
+      [1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,1,1,1,0,0,1,1,1,0,0,1,1,0,1],
+      [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,2,0,1],
+      [1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ],
+    playerStart: { x: 1.5, y: 1.5 },
+    guards: [
+      { tx: 10, ty: 7,  patrol: [{x:10,y:7 },{x:15,y:7 },{x:15,y:12},{x:10,y:12}], speed: 1.5 },
+      { tx: 1,  ty: 6,  patrol: [{x:1, y:6 },{x:1, y:12}],                          speed: 1.2 },
+    ]
+  },
+
+  // ── LEVEL 2: Tighter maze, 4 guards ─────────────────────────────────────
+  {
+    map: [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,2,1],
+      [1,0,1,0,1,0,1,1,1,1,0,0,1,0,1,1,1,0,0,1],
+      [1,0,1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1],
+      [1,0,1,1,1,0,1,0,1,1,1,0,0,0,1,0,1,1,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+      [1,1,1,0,1,1,1,0,1,0,0,1,0,0,1,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,1],
+      [1,0,1,1,0,0,1,0,0,0,0,0,0,1,0,0,1,0,0,1],
+      [1,0,1,0,0,0,1,1,0,1,1,1,0,1,0,0,1,0,0,1],
+      [1,2,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,2,1],
+      [1,0,0,0,1,1,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,1,0,0,2,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ],
+    playerStart: { x: 1.5, y: 1.5 },
+    guards: [
+      { tx: 10, ty: 3,  patrol: [{x:10,y:3},{x:16,y:3},{x:16,y:6},{x:10,y:6}], speed: 1.8 },
+      { tx: 3,  ty: 7,  patrol: [{x:3, y:7},{x:3, y:12}],                        speed: 1.6 },
+      { tx: 14, ty: 9,  patrol: [{x:14,y:9},{x:17,y:9}],                         speed: 2.0 },
+      { tx: 7,  ty: 11, patrol: [{x:7, y:11},{x:11,y:11},{x:11,y:13},{x:7,y:13}], speed: 1.7 },
+    ]
+  },
+
+  // ── LEVEL 3: Dense maze, 6 fast guards, 4 keys ──────────────────────────
+  {
+    map: [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,2,1],
+      [1,0,1,1,0,1,0,1,1,1,1,1,1,0,1,0,1,0,0,1],
+      [1,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1,0,0,1],
+      [1,0,1,0,1,1,0,1,0,1,1,0,1,0,1,0,1,0,0,1],
+      [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,2,1],
+      [1,1,1,0,1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1],
+      [1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+      [1,0,1,0,0,0,1,0,1,1,1,0,1,0,0,0,1,0,0,1],
+      [1,0,1,0,1,0,1,0,0,0,0,0,1,0,1,0,1,0,0,1],
+      [1,2,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+      [1,0,1,0,0,0,1,1,0,1,0,1,1,0,0,0,1,0,0,1],
+      [1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+      [1,2,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ],
+    playerStart: { x: 1.5, y: 1.5 },
+    guards: [
+      { tx: 8,  ty: 2,  patrol: [{x:8, y:2},{x:12,y:2}],                              speed: 2.4 },
+      { tx: 3,  ty: 5,  patrol: [{x:3, y:5},{x:3, y:12}],                             speed: 2.2 },
+      { tx: 15, ty: 3,  patrol: [{x:15,y:3},{x:18,y:3},{x:18,y:7},{x:15,y:7}],        speed: 2.3 },
+      { tx: 10, ty: 7,  patrol: [{x:10,y:7},{x:15,y:7},{x:15,y:12},{x:10,y:12}],      speed: 2.2 },
+      { tx: 5,  ty: 9,  patrol: [{x:5, y:9},{x:8, y:9}],                              speed: 2.6 },
+      { tx: 16, ty: 11, patrol: [{x:16,y:11},{x:16,y:13}],                             speed: 2.1 },
+    ]
+  }
+];
+
+// ─── AUDIO ───────────────────────────────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function tone(freq, type, dur, vol = 0.25, delay = 0) {
+  const ac = getAudio();
+  const t0 = ac.currentTime + delay;
+  const osc = ac.createOscillator();
+  const g   = ac.createGain();
+  osc.connect(g); g.connect(ac.destination);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.start(t0); osc.stop(t0 + dur);
+}
+const sfx = {
+  key:    () => { tone(880,'sine',0.08,0.25); tone(1320,'sine',0.12,0.2,0.07); },
+  caught: () => { tone(200,'sawtooth',0.12,0.4); tone(140,'sawtooth',0.18,0.4,0.1); tone(90,'sawtooth',0.25,0.3,0.22); },
+  win:    () => { [523,659,784,1047].forEach((f,i) => tone(f,'sine',0.2,0.25,i*0.14)); },
+  door:   () => { tone(400,'sine',0.08,0.2); tone(700,'sine',0.1,0.2,0.08); },
+  step:   () => { tone(60+Math.random()*30,'triangle',0.04,0.04); },
+};
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let gameState = 'title';  // title | playing | caught | levelComplete | win
+let currentLevel = 0;
+let lives = 3;
+let keyItems = [];
+let keysCollected = 0;
+let totalKeys = 0;
+let player = {};
+let guards = [];
+let exitOpen = false;
+// Safe default — all walls, prevents any undefined[NaN] access before loadLevel runs
+let map = Array.from({ length: ROWS }, () => Array(COLS).fill(T.WALL));
+let flashAlpha = 0;
+let stepTimer = 0;
+let particleList = [];
+
+// Input
+const kbd = {};
+window.addEventListener('keydown', e => {
+  kbd[e.code] = true;
+  kbd[e.key]  = true;
+  if (e.key === 'Enter' || e.key === ' ') handleConfirm();
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+});
+window.addEventListener('keyup', e => { kbd[e.code] = false; kbd[e.key] = false; });
+
+function handleConfirm() {
+  if (gameState === 'title')         { startGame(); }
+  else if (gameState === 'caught')   { restartLevel(); }
+  else if (gameState === 'levelComplete') { nextLevel(); }
+  else if (gameState === 'win')      { gameState = 'title'; }
+}
+
+// ─── GAME FLOW ────────────────────────────────────────────────────────────────
+function startGame() {
+  currentLevel = 0;
+  lives = 3;
+  loadLevel(currentLevel);
+  gameState = 'playing';
+}
+
+function loadLevel(idx) {
+  const lvl = LEVELS[idx];
+  map = lvl.map.map(row => [...row]);
+
+  keyItems = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (map[r][c] === T.KEY)
+        keyItems.push({ col: c, row: r, collected: false, bobOffset: Math.random() * Math.PI * 2 });
+
+  keysCollected = 0;
+  totalKeys = keyItems.length;
+  exitOpen = false;
+  flashAlpha = 0;
+  particleList = [];
+
+  player = {
+    x: lvl.playerStart.x,
+    y: lvl.playerStart.y,
+    radius: 0.32,
+    speed: 4.2,
+    facing: 0,
+    animFrame: 0,
+    animTimer: 0,
+  };
+
+  guards = lvl.guards.map(g => {
+    const px = g.patrol.map(p => ({ x: p.x + 0.5, y: p.y + 0.5 }));
+    return {
+      x: g.tx + 0.5,
+      y: g.ty + 0.5,
+      radius: 0.33,
+      patrol: px,
+      patrolIdx: 0,
+      pathQueue: [],
+      speed: g.speed,
+      facing: 0,
+      fovHalf: Math.PI / 5,
+      fovDist: 5.5,
+      animFrame: 0,
+      animTimer: 0,
+      alertFlash: 0,
+    };
+  });
+  // Pre-compute BFS paths toward each guard's first waypoint
+  guards.forEach(g => computeGuardPath(g));
+}
+
+function restartLevel() {
+  if (lives <= 0) { gameState = 'title'; return; }
+  loadLevel(currentLevel);
+  gameState = 'playing';
+}
+
+function nextLevel() {
+  currentLevel++;
+  if (currentLevel >= LEVELS.length) { sfx.win(); gameState = 'win'; return; }
+  loadLevel(currentLevel);
+  gameState = 'playing';
+}
+
+// ─── PHYSICS ─────────────────────────────────────────────────────────────────
+function wallAt(cx, cy) {
+  if (!isFinite(cx) || !isFinite(cy)) return true;
+  const c = Math.floor(cx), r = Math.floor(cy);
+  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return true;
+  if (!map[r]) return true;
+  return map[r][c] === T.WALL;
+}
+
+function moveEntity(ent, dx, dy) {
+  if (!isFinite(dx) || !isFinite(dy)) return;
+  const R = ent.radius;
+  // Separate X and Y to allow wall sliding
+  const nx = ent.x + dx;
+  if (!wallAt(nx - R, ent.y - R) && !wallAt(nx + R, ent.y - R) &&
+      !wallAt(nx - R, ent.y + R) && !wallAt(nx + R, ent.y + R))
+    ent.x = nx;
+  const ny = ent.y + dy;
+  if (!wallAt(ent.x - R, ny - R) && !wallAt(ent.x + R, ny - R) &&
+      !wallAt(ent.x - R, ny + R) && !wallAt(ent.x + R, ny + R))
+    ent.y = ny;
+}
+
+// ─── PATHFINDING (BFS on tile grid) ──────────────────────────────────────────
+function tileWall(c, r) {
+  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return true;
+  if (!map[r]) return true;
+  return map[r][c] === T.WALL;
+}
+
+function bfsPath(fromX, fromY, toX, toY) {
+  const sc = Math.floor(fromX), sr = Math.floor(fromY);
+  const ec = Math.floor(toX),   er = Math.floor(toY);
+  if (sc === ec && sr === er) return [{ x: toX, y: toY }];
+
+  const queue  = [[sr, sc]];
+  const visited = new Set([`${sr},${sc}`]);
+  const parent  = new Map();
+  const DIRS    = [[0,1],[0,-1],[1,0],[-1,0]];
+
+  while (queue.length) {
+    const [r, c] = queue.shift();
+    if (r === er && c === ec) {
+      const path = [];
+      let key = `${er},${ec}`;
+      while (parent.has(key)) {
+        const [pr, pc] = key.split(',').map(Number);
+        path.unshift({ x: pc + 0.5, y: pr + 0.5 });
+        key = parent.get(key);
+      }
+      // Replace last node with exact target so guard arrives precisely
+      if (path.length) path[path.length - 1] = { x: toX, y: toY };
+      else path.push({ x: toX, y: toY });
+      return path;
+    }
+    for (const [dr, dc] of DIRS) {
+      const nr = r + dr, nc = c + dc;
+      const k = `${nr},${nc}`;
+      if (!visited.has(k) && !tileWall(nc, nr)) {
+        visited.add(k);
+        parent.set(k, `${r},${c}`);
+        queue.push([nr, nc]);
+      }
+    }
+  }
+  return [{ x: toX, y: toY }]; // fallback: try direct
+}
+
+function computeGuardPath(g) {
+  const target = g.patrol[g.patrolIdx];
+  g.pathQueue = bfsPath(g.x, g.y, target.x, target.y);
+}
+
+function hasLOS(ax, ay, bx, by) {
+  const steps = Math.ceil(Math.hypot(bx - ax, by - ay) * 6);
+  if (steps === 0) return true;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    if (wallAt(ax + (bx-ax)*t, ay + (by-ay)*t)) return false;
+  }
+  return true;
+}
+
+function guardSees(g) {
+  const dx = player.x - g.x, dy = player.y - g.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > g.fovDist) return false;
+  let diff = Math.atan2(dy, dx) - g.facing;
+  while (diff >  Math.PI) diff -= 2*Math.PI;
+  while (diff < -Math.PI) diff += 2*Math.PI;
+  if (Math.abs(diff) > g.fovHalf) return false;
+  return hasLOS(g.x, g.y, player.x, player.y);
+}
+
+// ─── PARTICLES ───────────────────────────────────────────────────────────────
+function spawnParticles(wx, wy, color, count = 8) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1.5 + Math.random() * 2.5;
+    particleList.push({
+      x: wx * TILE, y: wy * TILE,
+      vx: Math.cos(angle) * speed * TILE * 0.015,
+      vy: Math.sin(angle) * speed * TILE * 0.015,
+      life: 1, color, size: 3 + Math.random() * 4,
+    });
+  }
+}
+
+// ─── UPDATE ──────────────────────────────────────────────────────────────────
+let lastTime = 0;
+
+function update(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  requestAnimationFrame(update);
+
+  // Animate particles always
+  for (const p of particleList) {
+    p.x += p.vx; p.y += p.vy; p.vy += 0.08;
+    p.life -= dt * 2.5;
+  }
+  particleList = particleList.filter(p => p.life > 0);
+
+  if (gameState !== 'playing') { draw(); return; }
+
+  // ── Player movement ──
+  let mx = 0, my = 0;
+  if (kbd['ArrowLeft']  || kbd['KeyA'] || kbd['a']) mx -= 1;
+  if (kbd['ArrowRight'] || kbd['KeyD'] || kbd['d']) mx += 1;
+  if (kbd['ArrowUp']    || kbd['KeyW'] || kbd['w']) my -= 1;
+  if (kbd['ArrowDown']  || kbd['KeyS'] || kbd['s']) my += 1;
+
+  if (mx !== 0 || my !== 0) {
+    const mag = Math.hypot(mx, my);
+    const spd = player.speed * dt;
+    player.facing = Math.atan2(my, mx);
+    moveEntity(player, mx / mag * spd, my / mag * spd);
+    player.animTimer += dt;
+    if (player.animTimer > 0.1) { player.animTimer = 0; player.animFrame = (player.animFrame + 1) % 4; }
+    stepTimer += dt;
+    if (stepTimer > 0.28) { stepTimer = 0; sfx.step(); }
+  }
+
+  // ── Key pickup ──
+  for (const k of keyItems) {
+    if (k.collected) continue;
+    const dist = Math.hypot(player.x - (k.col + 0.5), player.y - (k.row + 0.5));
+    if (dist < 0.55) {
+      k.collected = true;
+      map[k.row][k.col] = T.FLOOR;
+      keysCollected++;
+      spawnParticles(k.col + 0.5, k.row + 0.5, '#f0c040', 12);
+      sfx.key();
+      if (keysCollected >= totalKeys) { exitOpen = true; sfx.door(); }
+    }
+  }
+
+  // ── Exit check ──
+  if (exitOpen) {
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      if (map[r][c] === T.EXIT) {
+        if (Math.hypot(player.x - (c+0.5), player.y - (r+0.5)) < 0.55) {
+          sfx.win();
+          gameState = 'levelComplete';
+        }
+      }
+    }
+  }
+
+  // ── Guard AI ──
+  for (const g of guards) {
+    // Advance to next waypoint when path is exhausted
+    if (!g.pathQueue || g.pathQueue.length === 0) {
+      g.patrolIdx = (g.patrolIdx + 1) % g.patrol.length;
+      computeGuardPath(g);
+    }
+
+    const node = g.pathQueue[0];
+    if (node) {
+      const dx = node.x - g.x, dy = node.y - g.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.08) {
+        // Snap to node and pop it
+        g.x = node.x; g.y = node.y;
+        g.pathQueue.shift();
+      } else {
+        // Smooth rotation toward movement direction
+        const targetAngle = Math.atan2(dy, dx);
+        let diff = targetAngle - g.facing;
+        while (diff >  Math.PI) diff -= 2 * Math.PI;
+        while (diff < -Math.PI) diff += 2 * Math.PI;
+        g.facing += diff * Math.min(1, 8 * dt);
+        const step = g.speed * dt;
+        g.x += (dx / dist) * step;
+        g.y += (dy / dist) * step;
+      }
+    }
+
+    g.animTimer += dt;
+    if (g.animTimer > 0.13) { g.animTimer = 0; g.animFrame = (g.animFrame + 1) % 4; }
+    g.alertFlash = Math.max(0, g.alertFlash - dt);
+
+    if (guardSees(g)) {
+      sfx.caught();
+      lives--;
+      flashAlpha = 1;
+      spawnParticles(player.x, player.y, '#ff4444', 20);
+      gameState = 'caught';
+    }
+  }
+
+  flashAlpha = Math.max(0, flashAlpha - dt * 2);
+  draw();
+}
+
+// ─── DRAW ─────────────────────────────────────────────────────────────────────
+
+// ── Off-screen tile textures (generated once) ────────────────────────────────
+const floorCanvas = document.createElement('canvas');
+floorCanvas.width = floorCanvas.height = TILE;
+(function buildFloor() {
+  const fc = floorCanvas.getContext('2d');
+  fc.fillStyle = '#1c1f26';
+  fc.fillRect(0, 0, TILE, TILE);
+  // Concrete panels with grout gap
+  const G = 3; // grout width
+  const panels = [[G,G,TILE/2-G-1,TILE/2-G-1],[TILE/2+1,G,TILE/2-G-1,TILE/2-G-1],
+                  [G,TILE/2+1,TILE/2-G-1,TILE/2-G-1],[TILE/2+1,TILE/2+1,TILE/2-G-1,TILE/2-G-1]];
+  for (const [x,y,w,h] of panels) {
+    const shade = 28 + Math.random() * 6 | 0;
+    fc.fillStyle = `rgb(${shade},${shade+2},${shade+4})`;
+    fc.fillRect(x, y, w, h);
+    // Subtle highlight on top-left edge
+    fc.fillStyle = 'rgba(255,255,255,0.04)';
+    fc.fillRect(x, y, w, 1);
+    fc.fillRect(x, y, 1, h);
+    // Grime bottom-right
+    fc.fillStyle = 'rgba(0,0,0,0.12)';
+    fc.fillRect(x, y+h-1, w, 1);
+    fc.fillRect(x+w-1, y, 1, h);
+  }
+  // Random scuffs
+  for (let i = 0; i < 6; i++) {
+    fc.fillStyle = `rgba(0,0,0,${0.05 + Math.random()*0.08})`;
+    fc.fillRect(Math.random()*TILE|0, Math.random()*TILE|0, 2+Math.random()*4|0, 1);
+  }
+})();
+
+const wallCanvas = document.createElement('canvas');
+wallCanvas.width = wallCanvas.height = TILE;
+(function buildWall() {
+  const wc = wallCanvas.getContext('2d');
+  // Base brick colour
+  wc.fillStyle = '#1a3060';
+  wc.fillRect(0, 0, TILE, TILE);
+  // Brick rows
+  const BH = 10, BW = TILE;
+  for (let row = 0; row < Math.ceil(TILE/BH); row++) {
+    const y = row * BH;
+    const offset = (row % 2) * (BW / 2);
+    for (let bx = -BW/2; bx < BW + BW/2; bx += BW) {
+      const rx = bx + offset, ry = y;
+      const shade = 26 + Math.random() * 8 | 0;
+      wc.fillStyle = `rgb(${shade},${shade+8},${shade+36})`;
+      wc.fillRect(rx+1, ry+1, BW-3, BH-3);
+      // Top face specular
+      wc.fillStyle = 'rgba(120,180,255,0.07)';
+      wc.fillRect(rx+1, ry+1, BW-3, 2);
+    }
+    // Mortar line
+    wc.fillStyle = 'rgba(5,10,22,0.9)';
+    wc.fillRect(0, y, TILE, 1);
+  }
+  // Left-edge shadow
+  const lg = wc.createLinearGradient(0,0,8,0);
+  lg.addColorStop(0,'rgba(0,0,0,0.5)'); lg.addColorStop(1,'rgba(0,0,0,0)');
+  wc.fillStyle = lg; wc.fillRect(0,0,8,TILE);
+})();
+
+// Precomputed AO shadow edges (drawn over floor tiles adjacent to walls)
+function drawAO() {
+  ctx.save();
+  for (let r = 0; r < ROWS; r++) {
+    if (!map[r]) continue;
+    for (let c = 0; c < COLS; c++) {
+      if (map[r][c] === T.WALL) continue;
+      const x = c * TILE, y = r * TILE;
+      const size = 10;
+      const drawGrad = (x0,y0,x1,y1,rx,ry,rw,rh) => {
+        const g = ctx.createLinearGradient(x0,y0,x1,y1);
+        g.addColorStop(0,'rgba(0,0,0,0.38)');
+        g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(rx,ry,rw,rh);
+      };
+      if (r > 0 && map[r-1] && map[r-1][c] === T.WALL) drawGrad(x,y,x,y+size, x,y,TILE,size);
+      if (r < ROWS-1 && map[r+1] && map[r+1][c] === T.WALL) drawGrad(x,y+TILE,x,y+TILE-size, x,y+TILE-size,TILE,size);
+      if (c > 0 && map[r][c-1] === T.WALL) drawGrad(x,y,x+size,y, x,y,size,TILE);
+      if (c < COLS-1 && map[r][c+1] === T.WALL) drawGrad(x+TILE,y,x+TILE-size,y, x+TILE-size,y,size,TILE);
+    }
+  }
+  ctx.restore();
+}
+
+function drawMap() {
+  if (!map || !map.length) return;
+  for (let r = 0; r < ROWS; r++) {
+    if (!map[r]) continue;
+    for (let c = 0; c < COLS; c++) {
+      const t = map[r][c];
+      const x = c * TILE, y = r * TILE;
+
+      if (t === T.WALL) {
+        ctx.drawImage(wallCanvas, x, y);
+        // 3-D top cap
+        ctx.fillStyle = 'rgba(80,140,255,0.18)';
+        ctx.fillRect(x, y, TILE, 5);
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(x, y, TILE, 1);
+      } else {
+        ctx.drawImage(floorCanvas, x, y);
+
+        if (t === T.EXIT) {
+          // Door frame inset
+          const margin = 5;
+          if (exitOpen) {
+            // Pulsing green portal
+            const pulse = 0.5 + 0.5 * Math.sin(lastTime / 1000 * 4);
+            ctx.shadowColor = '#00e676'; ctx.shadowBlur = 20 + pulse * 12;
+            const eg = ctx.createRadialGradient(x+TILE/2,y+TILE/2,2,x+TILE/2,y+TILE/2,TILE*0.6);
+            eg.addColorStop(0, `rgba(0,255,130,${0.55+pulse*0.2})`);
+            eg.addColorStop(0.5,'rgba(0,200,100,0.25)');
+            eg.addColorStop(1, 'rgba(0,180,80,0)');
+            ctx.fillStyle = eg;
+            ctx.fillRect(x,y,TILE,TILE);
+            ctx.shadowBlur = 0;
+            // Chevron arrow
+            ctx.fillStyle = `rgba(0,255,130,${0.7+pulse*0.3})`;
+            ctx.font = 'bold 20px monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('▶', x+TILE/2, y+TILE/2);
+          } else {
+            // Closed door - metal plate
+            ctx.fillStyle = '#0e1e0e';
+            ctx.fillRect(x+margin,y+margin,TILE-margin*2,TILE-margin*2);
+            ctx.strokeStyle = '#1a3a1a';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(x+margin,y+margin,TILE-margin*2,TILE-margin*2);
+            ctx.fillStyle = '#0d2010';
+            ctx.font = '13px monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('🔒', x+TILE/2, y+TILE/2);
+          }
+        }
+      }
+    }
+  }
+  drawAO();
+}
+
+function drawKeys(now) {
+  for (const k of keyItems) {
+    if (k.collected) continue;
+    const bob = Math.sin(now * 2.8 + k.bobOffset) * 3;
+    const spin = now * 1.2 + k.bobOffset;
+    const cx = (k.col + 0.5) * TILE;
+    const cy = (k.row + 0.5) * TILE + bob;
+
+    // Ambient glow pool on floor
+    const pool = ctx.createRadialGradient(cx, cy+8, 1, cx, cy+6, 18);
+    pool.addColorStop(0,'rgba(255,200,40,0.22)');
+    pool.addColorStop(1,'rgba(255,180,0,0)');
+    ctx.fillStyle = pool; ctx.beginPath(); ctx.ellipse(cx,cy+8,18,7,0,0,Math.PI*2); ctx.fill();
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(spin);
+
+    // Key glow
+    ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = 14;
+
+    // Ring head
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI*2);
+    ctx.strokeStyle = '#d4a017'; ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI*2);
+    ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Shaft
+    ctx.fillStyle = '#c8900f';
+    ctx.fillRect(7, -2, 12, 4);
+
+    // Teeth
+    ctx.fillStyle = '#e8b020';
+    ctx.fillRect(14, 2,  3, 5);
+    ctx.fillRect(10, 2,  3, 4);
+
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,200,0.5)';
+    ctx.fillRect(7, -2, 12, 1.5);
+
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+// ── Humanoid sprite ──────────────────────────────────────────────────────────
+function drawHumanoid(wx, wy, facing, animFrame, bodyColor, helmetColor, isGuard) {
+  const px = wx * TILE, py = wy * TILE;
+  const T2 = TILE / 2;
+  const legSwing = Math.sin(animFrame / 4 * Math.PI * 2) * 5;
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(facing + Math.PI / 2);
+
+  // Drop shadow ellipse
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(0, 4, 9, 4, 0, 0, Math.PI*2); ctx.fill();
+
+  // Legs (behind body)
+  const legColor = isGuard ? '#5c1a1a' : '#1a3a5c';
+  ctx.fillStyle = legColor;
+  // Left leg
+  ctx.save(); ctx.translate(-4, 4);
+  ctx.fillRect(-2.5, -1, 5, 9 + legSwing);
+  ctx.restore();
+  // Right leg
+  ctx.save(); ctx.translate(4, 4);
+  ctx.fillRect(-2.5, -1, 5, 9 - legSwing);
+  ctx.restore();
+
+  // Body / torso
+  const bodyGrad = ctx.createLinearGradient(-8, -10, 8, 10);
+  bodyGrad.addColorStop(0, lighten(bodyColor, 30));
+  bodyGrad.addColorStop(1, bodyColor);
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.roundRect(-8, -12, 16, 18, 4);
+  ctx.fill();
+
+  // Vest / detail stripe
+  ctx.fillStyle = isGuard ? 'rgba(255,220,0,0.55)' : 'rgba(100,200,255,0.35)';
+  ctx.fillRect(-8, -4, 16, 3);
+
+  // Arms
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(-11, -10, 4, 10);
+  ctx.fillRect( 7,  -10, 4, 10);
+
+  // Helmet / head
+  const headGrad = ctx.createRadialGradient(-2,-16,1,-2,-16,9);
+  headGrad.addColorStop(0, lighten(helmetColor, 40));
+  headGrad.addColorStop(1, helmetColor);
+  ctx.fillStyle = headGrad;
+  ctx.beginPath(); ctx.arc(0, -16, 8, 0, Math.PI*2); ctx.fill();
+
+  // Visor / face
+  ctx.fillStyle = isGuard ? 'rgba(255,80,50,0.7)' : 'rgba(80,200,255,0.7)';
+  ctx.beginPath();
+  ctx.ellipse(0, -15, 5, 3.5, 0, 0, Math.PI*2);
+  ctx.fill();
+  // Visor glint
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillRect(-3, -18, 4, 1.5);
+
+  ctx.restore();
+}
+
+function lighten(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, (n>>16) + amt);
+  const g = Math.min(255, ((n>>8)&0xff) + amt);
+  const b = Math.min(255, (n&0xff) + amt);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ── Guard with realistic flashlight ─────────────────────────────────────────
+function drawGuard(g) {
+  const gx = g.x * TILE, gy = g.y * TILE;
+
+  // Flashlight beam — radial gradient cone
+  ctx.save();
+  ctx.translate(gx, gy);
+  ctx.rotate(g.facing);
+
+  const beamLen = g.fovDist * TILE;
+  const halfAngle = g.fovHalf;
+
+  // Soft outer glow
+  ctx.globalAlpha = 0.07;
+  const outerGrad = ctx.createRadialGradient(0,0,0,0,0,beamLen*1.1);
+  outerGrad.addColorStop(0,'rgba(255,240,160,1)');
+  outerGrad.addColorStop(1,'rgba(255,220,80,0)');
+  ctx.fillStyle = outerGrad;
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.arc(0,0,beamLen*1.1,-halfAngle*1.3,halfAngle*1.3);
+  ctx.closePath(); ctx.fill();
+
+  // Main beam
+  ctx.globalAlpha = 0.16;
+  const beamGrad = ctx.createRadialGradient(0,0,2,0,0,beamLen);
+  beamGrad.addColorStop(0,'rgba(255,248,200,1)');
+  beamGrad.addColorStop(0.4,'rgba(255,230,100,0.6)');
+  beamGrad.addColorStop(1,'rgba(255,200,50,0)');
+  ctx.fillStyle = beamGrad;
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.arc(0,0,beamLen,-halfAngle,halfAngle);
+  ctx.closePath(); ctx.fill();
+
+  // Bright centre hotspot
+  ctx.globalAlpha = 0.22;
+  const hotGrad = ctx.createRadialGradient(0,0,0,0,0,beamLen*0.5);
+  hotGrad.addColorStop(0,'rgba(255,255,220,1)');
+  hotGrad.addColorStop(1,'rgba(255,255,220,0)');
+  ctx.fillStyle = hotGrad;
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.arc(0,0,beamLen*0.5,-halfAngle*0.5,halfAngle*0.5);
+  ctx.closePath(); ctx.fill();
+
+  ctx.restore();
+
+  // Guard humanoid
+  ctx.shadowColor = '#ff4444'; ctx.shadowBlur = 8;
+  drawHumanoid(g.x, g.y, g.facing, g.animFrame, '#8b1a1a', '#5c0a0a', true);
+  ctx.shadowBlur = 0;
+
+  // Alert ring when close to seeing player
+  const distToPlayer = Math.hypot(player.x - g.x, player.y - g.y);
+  if (distToPlayer < g.fovDist * 1.2) {
+    ctx.save();
+    ctx.globalAlpha = 0.25 * (1 - distToPlayer / (g.fovDist * 1.2));
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(gx, gy, 18, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawPlayer() {
+  ctx.shadowColor = '#4fc3f7'; ctx.shadowBlur = 12;
+  drawHumanoid(player.x, player.y, player.facing, player.animFrame, '#1565c0', '#0d3b72', false);
+  ctx.shadowBlur = 0;
+}
+
+function drawParticles() {
+  for (const p of particleList) {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.shadowColor = p.color; ctx.shadowBlur = 6;
+    ctx.fillStyle = p.color;
+    // Rotate each particle
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.life * 5);
+    const s = p.size * p.life;
+    ctx.fillRect(-s/2, -s/2, s, s);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawHUD() {
+  // Glass panel
+  const hudH = 42;
+  ctx.fillStyle = 'rgba(5,10,20,0.82)';
+  ctx.fillRect(0, 0, canvas.width, hudH);
+  // Bottom border glow
+  const hudLine = ctx.createLinearGradient(0,hudH,canvas.width,hudH);
+  hudLine.addColorStop(0,'rgba(79,195,247,0)');
+  hudLine.addColorStop(0.3,'rgba(79,195,247,0.6)');
+  hudLine.addColorStop(0.7,'rgba(79,195,247,0.6)');
+  hudLine.addColorStop(1,'rgba(79,195,247,0)');
+  ctx.fillStyle = hudLine;
+  ctx.fillRect(0, hudH-1, canvas.width, 1);
+
+  ctx.textBaseline = 'middle';
+  const mid = hudH / 2;
+
+  // Level badge
+  ctx.fillStyle = 'rgba(79,195,247,0.12)';
+  ctx.beginPath(); ctx.roundRect(8, 6, 110, 30, 4); ctx.fill();
+  ctx.fillStyle = '#4fc3f7';
+  ctx.font = 'bold 11px "Courier New"';
+  ctx.textAlign = 'left';
+  ctx.fillText('LEVEL', 16, mid - 6);
+  ctx.font = 'bold 17px "Courier New"';
+  ctx.fillText(`${currentLevel + 1}  /  ${LEVELS.length}`, 16, mid + 8);
+
+  // Keys badge
+  const allKeys = keysCollected >= totalKeys;
+  ctx.fillStyle = allKeys ? 'rgba(0,230,118,0.12)' : 'rgba(255,215,64,0.1)';
+  ctx.beginPath(); ctx.roundRect(canvas.width/2 - 70, 6, 140, 30, 4); ctx.fill();
+  ctx.fillStyle = allKeys ? '#00e676' : '#ffd740';
+  ctx.font = 'bold 11px "Courier New"';
+  ctx.textAlign = 'center';
+  ctx.fillText('KEYS', canvas.width/2, mid - 6);
+  ctx.font = 'bold 17px "Courier New"';
+  ctx.fillText(`${keysCollected}  /  ${totalKeys}`, canvas.width/2, mid + 8);
+
+  // Lives badge
+  ctx.fillStyle = 'rgba(239,83,80,0.12)';
+  ctx.beginPath(); ctx.roundRect(canvas.width - 118, 6, 110, 30, 4); ctx.fill();
+  ctx.fillStyle = '#ef5350';
+  ctx.font = 'bold 11px "Courier New"';
+  ctx.textAlign = 'right';
+  ctx.fillText('LIVES', canvas.width - 16, mid - 6);
+  ctx.font = '17px "Courier New"';
+  const hearts = '♥'.repeat(lives) + '♡'.repeat(Math.max(0,3-lives));
+  ctx.fillStyle = lives >= 2 ? '#ef5350' : '#ff1744';
+  ctx.fillText(hearts, canvas.width - 16, mid + 8);
+}
+
+// ─── SCREENS ──────────────────────────────────────────────────────────────────
+function drawTitle(now) {
+  ctx.fillStyle = '#06080f';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Tiled floor preview in background
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      ctx.drawImage(floorCanvas, c*TILE, r*TILE);
+
+  // Dark vignette overlay
+  const vign = ctx.createRadialGradient(canvas.width/2,canvas.height/2,80,canvas.width/2,canvas.height/2,canvas.width*0.75);
+  vign.addColorStop(0,'rgba(0,0,0,0.3)'); vign.addColorStop(1,'rgba(0,0,0,0.92)');
+  ctx.fillStyle = vign; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+
+  // Scanlines
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let y = 0; y < canvas.height; y += 3) ctx.fillRect(0, y, canvas.width, 1);
+
+  // Title
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#4fc3f7'; ctx.shadowBlur = 40;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 68px "Courier New"';
+  ctx.fillText('KEYBOUND', cx, cy - 120);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(79,195,247,0.5)';
+  ctx.font = '12px "Courier New"';
+  ctx.fillText('— S T E A L T H   E S C A P E —', cx, cy - 88);
+
+  // Divider
+  ctx.strokeStyle = 'rgba(79,195,247,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx-200,cy-70); ctx.lineTo(cx+200,cy-70); ctx.stroke();
+
+  const lines = [
+    ['#a8c8e8','WASD / Arrow Keys — Move'],
+    ['#ffd740','Collect all keys to unlock the exit'],
+    ['#ef5350','Stay out of guard flashlight beams'],
+    ['#88aa88','3 lives · 3 levels'],
+  ];
+  lines.forEach(([color, text], i) => {
+    ctx.fillStyle = color;
+    ctx.font = '15px "Courier New"';
+    ctx.fillText(text, cx, cy - 36 + i * 28);
+  });
+
+  const blink = Math.floor(now / 0.6) % 2;
+  if (blink) {
+    ctx.shadowColor = '#00e676'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#00e676';
+    ctx.font = 'bold 16px "Courier New"';
+    ctx.fillText('[ PRESS ENTER TO START ]', cx, cy + 90);
+    ctx.shadowBlur = 0;
+  }
+}
+
+function drawOverlay(bgColor, titleText, titleColor, glowColor, lines) {
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = 'center';
+  ctx.shadowColor = glowColor; ctx.shadowBlur = 22;
+  ctx.fillStyle = titleColor;
+  ctx.font = 'bold 52px "Courier New"';
+  ctx.fillText(titleText, canvas.width/2, canvas.height/2 - 60);
+  ctx.shadowBlur = 0;
+
+  ctx.font = '18px "Courier New"';
+  lines.forEach((l, i) => {
+    ctx.fillStyle = l.color || '#ccddee';
+    ctx.fillText(l.text, canvas.width/2, canvas.height/2 + i * 36);
+  });
+}
+
+function drawWin(now) {
+  ctx.fillStyle = PALETTE.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#ffd740'; ctx.shadowBlur = 30;
+  ctx.fillStyle = '#ffd740';
+  ctx.font = 'bold 60px "Courier New"';
+  ctx.fillText('YOU WIN!', canvas.width/2, canvas.height/2 - 90);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ffffcc';
+  ctx.font = '20px "Courier New"';
+  ctx.fillText('All 3 levels escaped!', canvas.width/2, canvas.height/2 - 30);
+  ctx.fillStyle = '#ef5350';
+  ctx.font = '16px "Courier New"';
+  ctx.fillText(`Lives remaining: ${'♥ '.repeat(lives).trim()}`, canvas.width/2, canvas.height/2 + 20);
+  const blink = Math.floor(now / 0.55) % 2;
+  if (blink) {
+    ctx.fillStyle = '#fff';
+    ctx.font = '17px "Courier New"';
+    ctx.fillText('[ ENTER to play again ]', canvas.width/2, canvas.height/2 + 80);
+  }
+}
+
+function draw() {
+  const now = lastTime / 1000;
+
+  if (gameState === 'title') { drawTitle(now); return; }
+  if (gameState === 'win')   { drawWin(now);   return; }
+
+  // Game world
+  ctx.fillStyle = '#08090e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawMap();
+  drawKeys(now);
+  guards.forEach(drawGuard);
+  drawPlayer();
+  drawParticles();
+
+  // Subtle vignette
+  const vig = ctx.createRadialGradient(canvas.width/2,canvas.height/2,100,canvas.width/2,canvas.height/2,canvas.width*0.7);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.45)');
+  ctx.fillStyle = vig; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  drawHUD();
+
+  // Red flash on caught
+  if (flashAlpha > 0) {
+    ctx.fillStyle = `rgba(200,0,0,${flashAlpha * 0.55})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  if (gameState === 'caught') {
+    const blink = Math.floor(now / 0.5) % 2;
+    drawOverlay(
+      'rgba(80,0,0,0.55)',
+      'CAUGHT!', '#ff4444', '#ff0000',
+      [
+        { text: lives > 0 ? `Lives left: ${'♥ '.repeat(lives).trim()}` : 'GAME OVER', color: lives > 0 ? '#ffaaaa' : '#ff2222' },
+        { text: lives > 0 ? (blink ? '[ ENTER to retry ]' : '') : (blink ? '[ ENTER for menu ]' : ''), color: '#ffffff' },
+      ]
+    );
+  }
+
+  if (gameState === 'levelComplete') {
+    const blink = Math.floor(now / 0.5) % 2;
+    drawOverlay(
+      'rgba(0,50,20,0.6)',
+      'ESCAPED!', '#00e676', '#00e676',
+      [
+        { text: `Level ${currentLevel + 1} cleared!`, color: '#aaffcc' },
+        { text: blink ? '[ ENTER for next level ]' : '', color: '#ffffff' },
+      ]
+    );
+  }
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+requestAnimationFrame(t => { lastTime = t; requestAnimationFrame(update); });
+</script>
+</body>
+</html>
